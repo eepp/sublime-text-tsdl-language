@@ -565,7 +565,7 @@ contexts:
   # Generic attribute.
   gen-attr:
     - include: comments
-    - match: '\b{{id}}\b'
+    - match: '(?:\b{{id}}\b|\.)+'
       scope: entity.other.attribute-name.tsdl
       push: expect-gen-attr-equal
   expect-gen-attr-equal:
