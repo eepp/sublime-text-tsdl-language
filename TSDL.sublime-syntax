@@ -1,0 +1,610 @@
+%YAML 1.2
+---
+name: TSDL
+file_extensions: ['tsdl']
+scope: source.tsdl
+first_line_match: '^/\* CTF 1\.\d+'
+variables:
+  id: '[a-zA-Z_][a-zA-Z0-9_]*'
+  takw: '(?:const|char|double|float|int|long|short|signed|unsigned|void|_Bool|_Complex|_Imaginary)'
+contexts:
+  main:
+    - include: comments
+    - match: \b(?:trace|stream|event)\b
+      scope: keyword.control.tsdl
+      push: expect-block
+    - match: \b(?:env|clock|callsite)\b
+      scope: keyword.control.tsdl
+      push: expect-attr-block
+    - include: type-alias
+    - include: type-def
+    - match: ;
+      scope: punctuation.terminator.tsdl
+    - include: enum-type
+    - include: struct-type
+    - include: variant-type
+
+    # Stuff below is not really expected in normal context, but it
+    # remains useful to highlight partial TSDL (a type, for example)
+    # even if the whole file is not valid.
+    - include: type
+    - include: const-int
+    - include: const-lang
+    - include: lit-string
+    - include: non-ws-invalid
+  non-ws-invalid:
+    - match: '[^\s]'
+      scope: invalid.illegal.tsdl
+  comments:
+    - match: //
+      push: comment-single
+    - match: /\*
+      push: comment-multi
+  comment-single:
+    - meta_scope: comment.line.double-slash.tsdl
+    - match: $
+      pop: true
+  comment-multi:
+    - meta_scope: comment.block.tsdl
+    - match: \*/
+      pop: true
+  expect-attr-block:
+    - meta_scope: meta.attr-block.tsdl
+    - include: comments
+    - match: \{
+      scope: punctuation.section.block.begin.tsdl
+      push: expect-attr-block-inner
+    - match: \}
+      scope: punctuation.section.block.end.tsdl
+      pop: true
+  expect-attr-block-inner:
+    - include: comments
+    - match: '(?=\})'
+      scope: punctuation.section.block.end.tsdl
+      pop: true
+    - include: gen-attr
+    - include: non-ws-invalid
+  expect-block:
+    - meta_scope: meta.block.tsdl
+    - include: comments
+    - match: \{
+      scope: punctuation.section.block.begin.tsdl
+      push: expect-block-inner
+    - match: \}
+      scope: punctuation.section.block.end.tsdl
+      pop: true
+    - include: non-ws-invalid
+  expect-block-inner:
+    - meta_scope: meta.block.inner.tsdl
+    - include: comments
+    - match: '(?=\})'
+      scope: punctuation.section.block.end.tsdl
+      pop: true
+    - include: type-alias
+    - include: type-def
+    - match: '\bpacket|event|context|fields\b'
+      scope: keyword.control.tsdl
+      push: block-scope
+    - include: gen-attr
+    - include: non-ws-invalid
+  block-scope:
+    - meta_scope: meta.block.scope.tsdl
+    - include: comments
+    - match: '\bpacket|event|header|context|fields\b'
+      scope: keyword.control.tsdl
+    - match: '\b{{id}}\b'
+      scope: invalid.illegal.tsdl
+    - match: \.
+      scope: punctuation.accessor.tsdl
+    - match: ':='
+      scope: keyword.operator.assignment.tsdl
+      set: expect-block-scope-type
+  expect-block-scope-type:
+    - meta_scope: meta.block.scope.tsdl
+    - include: comments
+    - match: '(?=integer|floating_point|string|enum|struct|variant)'
+      set: expect-block-scope-type-full
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+      set: expect-block-scope-type-ta-or-subscript
+    - include: non-ws-invalid
+  expect-block-scope-type-full:
+    - meta_scope: meta.block.scope.type-full.tsdl
+    - include: comments
+    - include: type
+    - match: ;
+      scope: punctuation.terminator.tsdl
+      pop: true
+    - include: non-ws-invalid
+  expect-block-scope-type-ta-or-subscript:
+    - meta_scope: meta.block.scope.tsdl
+    - include: comments
+    - match: ;
+      scope: punctuation.terminator.tsdl
+      pop: true
+    - include: subscript
+    - include: non-ws-invalid
+  type-def:
+    - include: comments
+    - match: \btypedef\b
+      scope: keyword.control.tsdl
+      push: expect-type-def-name
+  expect-type-def-name:
+    - meta_scope: meta.typedef.tsdl
+    - include: comments
+    - match: '(?=integer|floating_point|string|enum|struct|variant)'
+      set: expect-type-def-type-full
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+    - include: non-ws-invalid
+  expect-type-def-type-full:
+    - meta_scope: meta.typedef.type-full.tsdl
+    - include: comments
+    - include: type
+    - match: ;
+      scope: punctuation.terminator.tsdl
+      pop: true
+    - include: non-ws-invalid
+  type-alias:
+    - include: comments
+    - match: \btypealias\b
+      scope: keyword.control.tsdl
+      push: expect-type-alias-type
+  expect-type-alias-type:
+    - meta_scope: meta.typealias.tsdl
+    - include: comments
+    - match: '(?=integer|floating_point|string|enum|struct|variant)'
+      set: expect-type-alias-type-full
+    - include: non-ws-invalid
+  expect-type-alias-type-full:
+    - meta_scope: meta.typealias.type-full.tsdl
+    - include: comments
+    - include: type
+    - match: ':='
+      scope: keyword.operator.assignment.tsdl
+      set: expect-type-alias-name
+    - include: non-ws-invalid
+  expect-type-alias-name:
+    - include: comments
+    - match: '(?:integer|floating_point|string|enum|struct|variant)'
+      scope: invalid.illegal.tsdl
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+      set: expect-type-alias-name-rest
+    - include: non-ws-invalid
+  expect-type-alias-name-rest:
+    - include: comments
+    - match: '(?:integer|floating_point|string|enum|struct|variant)'
+      scope: invalid.illegal.tsdl
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+    - include: subscript
+    - match: ;
+      scope: punctuation.terminator.tsdl
+      pop: true
+    - include: non-ws-invalid
+  type:
+    - include: comments
+    - include: integer-type
+    - include: float-type
+    - include: string-type
+    - include: enum-type
+    - include: struct-type
+    - include: variant-type
+  integer-type:
+    - include: comments
+    - match: \binteger\b
+      scope: storage.type.tsdl
+      push: expect-bracket-integer-type
+  expect-bracket-integer-type:
+    - meta_scope: meta.type.integer.tsdl
+    - include: comments
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-integer-type-inner
+    - include: non-ws-invalid
+  expect-integer-type-inner:
+    - meta_scope: meta.type.integer.inner.tsdl
+    - include: comments
+    - match: \}
+      scope: punctuation.section.type.end.tsdl
+      pop: true
+    - match: \bmap\b
+      scope: entity.other.attribute-name.tsdl
+      push: expect-map-attr-equal
+    - include: gen-attr
+    - include: non-ws-invalid
+  float-type:
+    - include: comments
+    - match: \bfloating_point\b
+      scope: storage.type.tsdl
+      push: expect-float-type-bracket
+  expect-float-type-bracket:
+    - meta_scope: meta.type.float.tsdl
+    - include: comments
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-float-type-inner
+    - include: non-ws-invalid
+  expect-float-type-inner:
+    - meta_scope: meta.type.float.inner.tsdl
+    - include: comments
+    - match: \}
+      scope: punctuation.section.type.end.tsdl
+      pop: true
+    - include: gen-attr
+    - include: non-ws-invalid
+  string-type:
+    - include: comments
+    - match: \bstring\b
+      scope: storage.type.tsdl
+      push: expect-string-type-bracket-or-end
+  expect-string-type-bracket-or-end:
+    - meta_scope: meta.type.string.tsdl
+    - include: comments
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-string-type-inner
+
+    # `string` alone
+    - match: '(?=:=|;|[a-zA-Z_])'
+      pop: true
+    - include: non-ws-invalid
+  expect-string-type-inner:
+    - meta_scope: meta.type.string.inner.tsdl
+    - include: comments
+    - match: \}
+      scope: punctuation.section.type.end.tsdl
+      pop: true
+    - include: gen-attr
+    - include: non-ws-invalid
+  enum-type:
+    - include: comments
+    - match: \benum\b
+      scope: storage.type.tsdl
+      push: expect-enum-type-name-or-colon-or-bracket
+  expect-enum-type-name-or-colon-or-bracket:
+    - include: comments
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+      set: expect-enum-type-colon-or-field-name-or-bracket
+    - match: ':'
+      scope: punctuation.separator.tsdl
+      set: expect-enum-type-container-type-or-bracket
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-enum-type-inner
+    - include: non-ws-invalid
+  expect-enum-type-colon-or-field-name-or-bracket:
+    - meta_scope: meta.type.enum.tsdl
+    - include: comments
+    - match: '(?=\b{{id}}\b)'
+      set: expect-field-name
+    - match: '(?=;)'
+      pop: true
+    - match: ':'
+      scope: punctuation.separator.tsdl
+      set: expect-enum-type-container-type-or-bracket
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-enum-type-inner
+    - include: non-ws-invalid
+  expect-enum-type-container-type-or-bracket:
+    - meta_scope: meta.type.enum.tsdl
+    - include: comments
+    - include: integer-type
+    - match: '\bfloating_point|enum|string|struct|variant\b'
+      scope: invalid.illegal.tsdl
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+      set: expect-enum-type-bracket
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-enum-type-inner
+    - include: non-ws-invalid
+  expect-enum-type-bracket:
+    - include: comments
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-enum-type-inner
+    - include: non-ws-invalid
+  expect-enum-type-inner:
+    - meta_scope: meta.type.enum.inner.tsdl
+    - include: comments
+    - match: \}
+      scope: punctuation.section.type.end.tsdl
+      pop: true
+    - include: expect-enum-member-or-end
+  expect-enum-member-or-end:
+    - include: comments
+    - match: '(?=\})'
+      pop: true
+    - match: '\b{{id}}\b'
+      scope: entity.other.attribute-name.tsdl
+      push: expect-enum-member-comma-or-equal
+    - match: '"'
+      push: enum-member-lit-string-name
+    - include: non-ws-invalid
+  enum-member-lit-string-name:
+    - meta_scope: string.quoted.double.tsdl
+    - match: '"'
+      set: expect-enum-member-comma-or-equal
+    - include: lit-string-escape-char
+  expect-enum-member-comma-or-equal:
+    - include: comments
+    - match: '(?=\})'
+      pop: true
+    - match: ','
+      scope: punctuation.separator.tsdl
+      pop: true
+    - match: '='
+      scope: keyword.operator.assignment.tsdl
+      set: expect-enum-member-end-or-comma-or-value
+    - include: non-ws-invalid
+  expect-enum-member-end-or-comma-or-value:
+    - include: comments
+    - match: '(?=\})'
+      pop: true
+    - match: ','
+      scope: punctuation.separator.tsdl
+      pop: true
+    - match: '\.\.\.'
+      scope: keyword.operator.variadic.tsdl
+    - include: const-int
+    - include: non-ws-invalid
+  struct-type:
+    - include: comments
+    - match: \bstruct\b
+      scope: storage.type.tsdl
+      push: expect-struct-type-name-or-bracket
+  expect-struct-type-name-or-bracket:
+    - meta_scope: meta.type.struct.tsdl
+    - include: comments
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+      set: expect-struct-type-bracket-or-field-name-or-end
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-struct-type-inner
+    - include: non-ws-invalid
+  expect-struct-type-bracket-or-field-name-or-end:
+    - meta_scope: meta.type.struct.tsdl
+    - include: comments
+    - match: '(?=\b{{id}}\b)'
+      set: expect-field-name
+    - match: '(?=;)'
+      pop: true
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-struct-type-inner
+    - include: non-ws-invalid
+  expect-struct-type-inner:
+    - meta_scope: meta.type.struct.inner.tsdl
+    - include: comments
+    - match: \}
+      scope: punctuation.section.type.end.tsdl
+      set: expect-struct-type-inner-align-or-end
+    - include: type-alias
+    - include: type-def
+    - match: '(?=integer|floating_point|string|enum|struct|variant)'
+      push: expect-struct-type-inner-field-type
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+      push: struct-type-inner-field-ta
+    - include: non-ws-invalid
+  expect-struct-type-inner-align-or-end:
+    - include: comments
+    - match: '\balign\b'
+      scope: keyword.control.tsdl
+      push: struct-type-inner-align-inner
+    - match: '(?=:=|;|[a-zA-Z_])'
+      pop: true
+    - include: non-ws-invalid
+  struct-type-inner-align-inner:
+    - include: comments
+    - match: '\)'
+      scope: punctuation.section.brackets.end.tsdl
+      pop: true
+    - match: '\('
+      scope: punctuation.section.brackets.begin.tsdl
+    - include: const-int
+    - include: non-ws-invalid
+  struct-type-inner-field-ta:
+    - include: comments
+    - match: '\b{{takw}}\b'
+      scope: variable.parameter.tsdl
+    - include: expect-field-name
+  expect-struct-type-inner-field-type:
+    - include: comments
+    - include: type
+    - include: expect-field-name
+  variant-type:
+    - include: comments
+    - match: \bvariant\b
+      scope: storage.type.tsdl
+      push: expect-variant-type-name-or-tag-or-bracket
+  expect-variant-type-name-or-tag-or-bracket:
+    - meta_scope: meta.type.variant.tsdl
+    - include: comments
+    - include: variant-type-tag
+    - match: '\b{{id}}\b'
+      scope: variable.parameter.tsdl
+      set: expect-variant-type-bracket-or-field-name-or-end
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-struct-type-inner
+    - include: non-ws-invalid
+  variant-type-tag:
+    - include: comments
+    - match: <
+      scope: punctuation.section.variant-tag.begin.tsdl
+      push: expect-variant-type-tag-inner
+  expect-variant-type-tag-inner:
+    - meta_scope: meta.type.variant.tag.tsdl
+    - include: comments
+    - match: '>'
+      scope: punctuation.section.variant-tag.end.tsdl
+      pop: true
+    - include: expect-field-ref
+  expect-variant-type-bracket-or-field-name-or-end:
+    - meta_scope: meta.type.variant.tsdl
+    - include: comments
+    - include: variant-type-tag
+    - match: '(?=\b{{id}}\b)'
+      set: expect-field-name
+    - match: '(?=;)'
+      pop: true
+    - match: \{
+      scope: punctuation.section.type.begin.tsdl
+      set: expect-struct-type-inner
+    - include: non-ws-invalid
+  expect-map-attr-equal:
+    - meta_scope: meta.attr.map.tsdl
+    - include: comments
+    - match: '='
+      scope: keyword.operator.assignment.tsdl
+      set: expect-map-attr-clock
+    - include: non-ws-invalid
+  expect-map-attr-clock:
+    - meta_scope: meta.attr.map.clock.tsdl
+    - include: comments
+    - match: \bclock\b
+      scope: keyword.control.tsdl
+      set: expect-map-attr-clock-dot
+    - include: non-ws-invalid
+  expect-map-attr-clock-dot:
+    - meta_scope: meta.attr.map.clock.dot.tsdl
+    - include: comments
+    - match: \.
+      scope: punctuation.accessor.tsdl
+      set: expect-map-attr-clock-name
+    - include: non-ws-invalid
+  expect-map-attr-clock-name:
+    - meta_scope: meta.attr.map.name.tsdl
+    - include: comments
+    - match: '\b{{id}}\b'
+      set: expect-map-attr-clock-name-dot
+    - include: non-ws-invalid
+  expect-map-attr-clock-name-dot:
+    - meta_scope: meta.attr.map.name.dot.tsdl
+    - include: comments
+    - match: \.
+      scope: punctuation.accessor.tsdl
+      set: expect-map-attr-value
+    - include: non-ws-invalid
+  expect-map-attr-value:
+    - meta_scope: meta.attr.map.value.tsdl
+    - include: comments
+    - match: \bvalue\b
+      scope: keyword.control.tsdl
+      set: attr-semi
+    - include: non-ws-invalid
+  gen-attr:
+    - include: comments
+    - match: '\b{{id}}\b'
+      scope: entity.other.attribute-name.tsdl
+      push: expect-gen-attr-equal
+  expect-gen-attr-equal:
+    - meta_scope: meta.attr.tsdl
+    - include: comments
+    - match: '='
+      scope: keyword.operator.assignment.tsdl
+      set: expect-gen-attr-value
+    - include: non-ws-invalid
+  expect-gen-attr-value:
+    - meta_scope: meta.attr.value.tsdl
+    - include: comments
+    - include: attr-semi
+    - include: const-int
+    - include: lit-string
+    - include: const-lang
+    - match: '\b{{id}}\b'
+      set: expect-gen-attr-value-expect-semi
+    - include: non-ws-invalid
+  expect-gen-attr-value-expect-semi:
+    - include: comments
+    - match: ;
+      scope: punctuation.terminator.tsdl
+      pop: true
+    - include: non-ws-invalid
+  attr-semi:
+    - include: comments
+    - match: ;
+      scope: punctuation.terminator.tsdl
+      pop: true
+  expect-field-name:
+    - include: comments
+    - match: '\b{{id}}\b'
+      set: expect-field-name-end-or-subscript
+    - include: non-ws-invalid
+  expect-field-name-end-or-subscript:
+    - include: subscript
+    - match: ;
+      scope: punctuation.terminator.tsdl
+      pop: true
+    - include: non-ws-invalid
+  field-name:
+    - include: comments
+    - match: '\b{{id}}\b'
+      set: expect-field-name-end-or-subscript
+  subscript:
+    - match: '\['
+      scope: punctuation.section.brackets.begin.tsdl
+      push: expect-subscript-inner
+  expect-subscript-inner:
+    - meta_scope: meta.subscript.tsdl
+    - include: comments
+    - match: ']'
+      scope: punctuation.section.brackets.end.tsdl
+      pop: true
+    - include: const-int
+    - include: expect-field-ref
+  expect-field-ref:
+    - meta_scope: meta.field-ref.tsdl
+    - match: '\b(?:trace|stream|event|env|packet|context|header|fields)\b'
+      scope: keyword.control.tsdl
+    - match: '\b{{id}}\b'
+    - match: \.
+      scope: punctuation.accessor.tsdl
+    - include: non-ws-invalid
+  const-int:
+    - match: '([+-]?)(0[bB][01]+)'
+      captures:
+        1: keyword.operator.tsdl
+        2: constant.numeric.binary.tsdl
+    - match: '([+-]?)(0[xX][0-9a-fA-F]+)'
+      captures:
+        1: keyword.operator.tsdl
+        2: constant.numeric.hexadecimal.tsdl
+    - match: '([+-]?)(0[0-7]+)'
+      captures:
+        1: keyword.operator.tsdl
+        2: constant.numeric.octal.tsdl
+    - match: '([+-]?)(\d+)'
+      captures:
+        1: keyword.operator.tsdl
+        2: constant.numeric.decimal.tsdl
+  const-lang:
+    - match: \b(?:false|FALSE|true|TRUE)\b
+      scope: constant.language.tsdl
+    - match: \b(?:decimal|dec|d|i|u|hexadecimal|hex|x|X|p|octal|oct|o|binary|b)\b
+      scope: constant.language.tsdl
+    - match: \b(?:none|ASCII|UTF8)\b
+      scope: constant.language.tsdl
+    - match: \b(?:le|LE|be|BE|network|NETWORK|native|NATIVE)\b
+      scope: constant.language.tsdl
+  lit-string:
+    - match: '"'
+      push: lit-string-inner
+  lit-string-inner:
+    - meta_scope: string.quoted.double.tsdl
+    - match: '"'
+      pop: true
+    - include: lit-string-escape-char
+  lit-string-escape-char:
+    - match: '\\([\\abfnrtv0"])'
+      scope: constant.character.escape.tsdl
+    - match: '\\x[0-9a-fA-F][0-9a-fA-F]'
+      scope: constant.character.escape.tsdl
+    - match: '\\.'
+      scope: invalid.illegal.tsdl
