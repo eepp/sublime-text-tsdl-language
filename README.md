@@ -3,8 +3,8 @@
 This is a language definition for Sublime Text 3 to support TSDL,
 [CTF](http://diamon.org/ctf)'s metadata language.
 
-This is a `.sublime-language` file, so make sure your version of
-Sublime Text 3 supports this format.
+This is a `.sublime-syntax` file, so make sure your version of Sublime
+Text 3 supports this format.
 
 
 ## Installation
